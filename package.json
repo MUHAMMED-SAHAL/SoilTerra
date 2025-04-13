@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@types/leaflet": "^1.9.17",
+    "@vercel/kv": "^3.0.0",
+    "cors": "^2.8.5",
     "leaflet": "^1.9.4",
+    "mongodb": "^6.15.0",
+    "mongoose": "^8.13.2",
     "mqtt": "^5.11.0",
     "next": "15.3.0",
     "onnxruntime-web": "^1.21.0",

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 // Dynamically import the map component to avoid SSR issues
 const MapWithNoSSR = dynamic(
-  () => import('../components/MapComponent'),
+  () => import('@/components/DashboardMap'),
   {
     ssr: false,
     loading: () => (
@@ -18,23 +18,55 @@ const MapWithNoSSR = dynamic(
 
 export default function MapPage() {
   const [sensorLocations, setSensorLocations] = useState([]);
+  const [sensorData, setSensorData] = useState({});
   const [newSensor, setNewSensor] = useState({ name: '', latitude: '', longitude: '' });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = JSON.parse(
-        localStorage.getItem("sensorLocations") || "[]"
-      );
-      setSensorLocations(stored);
+    async function fetchSensors() {
+      try {
+        const response = await fetch('/api/sensors');
+        if (!response.ok) throw new Error('Failed to fetch sensors');
+        const sensors = await response.json();
+        setSensorLocations(sensors);
+        
+        // Initialize sensor data structure
+        const initialSensorData = {};
+        sensors.forEach(sensor => {
+          initialSensorData[sensor.deviceId] = {
+            npk: { nitrogen: 0, phosphorous: 0, potassium: 0 },
+            moisture: 0,
+            temperature: 0
+          };
+        });
+        setSensorData(initialSensorData);
+      } catch (err) {
+        console.error('Failed to load sensors:', err);
+      }
     }
+    fetchSensors();
   }, []);
 
-  const handleAddSensor = (e) => {
+  const handleAddSensor = async (e) => {
     e.preventDefault();
-    const updatedLocations = [...sensorLocations, newSensor];
-    setSensorLocations(updatedLocations);
-    localStorage.setItem("sensorLocations", JSON.stringify(updatedLocations));
-    setNewSensor({ name: '', latitude: '', longitude: '' });
+    try {
+      const response = await fetch('/api/sensors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newSensor)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add sensor');
+      }
+
+      const sensor = await response.json();
+      setSensorLocations(prev => [...prev, sensor]);
+      setNewSensor({ name: '', latitude: '', longitude: '' });
+    } catch (err) {
+      console.error('Failed to add sensor:', err);
+    }
   };
 
   return (
@@ -77,7 +109,10 @@ export default function MapPage() {
       </div>
 
       <div className="h-[calc(100vh-12rem)] w-full rounded-lg overflow-hidden shadow-lg">
-        <MapWithNoSSR sensorLocations={sensorLocations} />
+        <MapWithNoSSR 
+          sensorLocations={sensorLocations} 
+          sensorData={sensorData}
+        />
       </div>
     </div>
   );

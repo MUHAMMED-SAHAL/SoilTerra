@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react';
 import mqtt from 'mqtt';
 import dynamic from 'next/dynamic';
 
-// Dynamically import the map component
 const DashboardMapWithNoSSR = dynamic(
   () => import('@/components/DashboardMap'),
   { 
@@ -18,19 +17,44 @@ const DashboardMapWithNoSSR = dynamic(
 );
 
 export default function Dashboard() {
-  const [sensorData, setSensorData] = useState({
-    SOIL_SENSOR_1: { npk: { nitrogen: 0, phosphorous: 0, potassium: 0 }, moisture: 0, temperature: 0 },
-    SOIL_SENSOR_2: { npk: { nitrogen: 0, phosphorous: 0, potassium: 0 }, moisture: 0, temperature: 0 },
-    SOIL_SENSOR_3: { npk: { nitrogen: 0, phosphorous: 0, potassium: 0 }, moisture: 0, temperature: 0 }
-  });
-  const [sensorLocations, setSensorLocations] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [sensorData, setSensorData] = useState({});
   const [newSensor, setNewSensor] = useState({ name: '', latitude: '', longitude: '' });
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
+  const [savingStates, setSavingStates] = useState({});
   const clientRef = useRef(null);
-  const mapRef = useRef(null);
 
+  // Fetch devices from MongoDB
   useEffect(() => {
+    async function fetchDevices() {
+      try {
+        const response = await fetch('/api/sensors');
+        if (!response.ok) throw new Error('Failed to fetch devices');
+        const devices = await response.json();
+        setDevices(devices);
+        
+        // Initialize sensor data structure
+        const initialSensorData = {};
+        devices.forEach(device => {
+          initialSensorData[device.deviceId] = {
+            npk: { nitrogen: 0, phosphorous: 0, potassium: 0 },
+            moisture: 0,
+            temperature: 0
+          };
+        });
+        setSensorData(initialSensorData);
+      } catch (err) {
+        setError('Failed to load devices: ' + err.message);
+      }
+    }
+    fetchDevices();
+  }, []);
+
+  // Handle MQTT connection and subscriptions
+  useEffect(() => {
+    if (devices.length === 0) return;
+
     const client = mqtt.connect(
       "wss://55bad6254a054c01ab7834d94ae5c3a0.s1.eu.hivemq.cloud:8884/mqtt",
       {
@@ -42,12 +66,12 @@ export default function Dashboard() {
 
     clientRef.current = client;
 
-    const sensorIds = ['SOIL_SENSOR_1', 'SOIL_SENSOR_2', 'SOIL_SENSOR_3'];
-    const topics = sensorIds.map(id => [
-      `sensors/${id}/npk`,
-      `sensors/${id}/moisture`,
-      `sensors/${id}/temperature`
-    ]).flat();
+    // Create topics for all devices
+    const topics = devices.flatMap(device => [
+      `sensors/${device.deviceId}/npk`,
+      `sensors/${device.deviceId}/moisture`,
+      `sensors/${device.deviceId}/temperature`
+    ]);
 
     client.on('connect', () => {
       console.log('Connected to MQTT broker');
@@ -63,18 +87,29 @@ export default function Dashboard() {
       });
     });
 
-    client.on('message', (topic, message) => {
+    client.on('message', async (topic, message) => {
       try {
         const payload = JSON.parse(message.toString());
-        console.log(`Raw message received on ${topic}:`, payload);
+        const [, deviceId, dataType] = topic.split('/');
         
-        // Extract sensor ID and type from topic
-        const [, sensorId, dataType] = topic.split('/');
-        
+        // Store sensor data in MongoDB
+        await fetch('/api/sensor-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deviceId,
+            type: dataType,
+            payload
+          })
+        });
+
+        // Update local state
         setSensorData(prev => ({
           ...prev,
-          [sensorId]: {
-            ...prev[sensorId],
+          [deviceId]: {
+            ...prev[deviceId],
             [dataType]: dataType === 'npk' ? {
               nitrogen: payload.nitrogen,
               phosphorous: payload.phosphorous,
@@ -86,8 +121,6 @@ export default function Dashboard() {
         }));
       } catch (err) {
         console.error('Error processing message:', err);
-        console.error('Topic:', topic);
-        console.error('Raw message:', message.toString());
       }
     });
 
@@ -103,35 +136,75 @@ export default function Dashboard() {
         });
       }
     };
-  }, []);
+  }, [devices]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = JSON.parse(localStorage.getItem("sensorLocations") || "[]");
-      setSensorLocations(stored);
-    }
-  }, []);
-
-  const handleAddSensor = (e) => {
+  const handleAddSensor = async (e) => {
     e.preventDefault();
-    const updatedLocations = [...sensorLocations, newSensor];
-    setSensorLocations(updatedLocations);
-    localStorage.setItem("sensorLocations", JSON.stringify(updatedLocations));
-    setNewSensor({ name: '', latitude: '', longitude: '' });
+    try {
+      const response = await fetch('/api/sensors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newSensor)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add sensor');
+      }
+
+      const device = await response.json();
+      setDevices(prev => [...prev, device]);
+      setNewSensor({ name: '', latitude: '', longitude: '' });
+    } catch (err) {
+      setError('Failed to add sensor: ' + err.message);
+    }
+  };
+
+  const handleSaveData = async (device) => {
+    try {
+      setSavingStates(prev => ({ ...prev, [device.deviceId]: true }));
+      
+      const currentData = sensorData[device.deviceId];
+      if (!currentData) {
+        throw new Error('No data to save');
+      }
+
+      // Save all sensor data in a single request
+      const response = await fetch('/api/sensor-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deviceId: device.deviceId,
+          sensorData: currentData
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save sensor data');
+      }
+
+      setSavingStates(prev => ({ ...prev, [device.deviceId]: false }));
+    } catch (err) {
+      console.error('Failed to save sensor data:', err);
+      setSavingStates(prev => ({ ...prev, [device.deviceId]: false }));
+    }
   };
 
   if (error) {
     return (
       <div className="p-6 bg-white rounded-lg shadow">
         <div className="text-red-600 mb-4">
-          <h2 className="text-xl font-bold">Connection Error</h2>
+          <h2 className="text-xl font-bold">Error</h2>
         </div>
         <p className="text-gray-600">{error}</p>
         <button
           onClick={() => window.location.reload()}
           className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
         >
-          Retry Connection
+          Retry
         </button>
       </div>
     );
@@ -152,39 +225,51 @@ export default function Dashboard() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Soil Parameters Dashboard</h1>
 
-      {/* Existing Sensor Data Cards */}
+      {/* Sensor Data Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {Object.entries(sensorData).map(([sensorId, data]) => (
-          <div key={sensorId} className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">{sensorId}</h2>
+        {devices.map((device) => (
+          <div key={device._id} className="bg-white p-6 rounded-lg shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-semibold">{device.name}</h2>
+                <div className="text-sm text-gray-500">ID: {device.deviceId}</div>
+              </div>
+              <button
+                onClick={() => handleSaveData(device)}
+                disabled={savingStates[device.deviceId]}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:bg-green-300 disabled:cursor-not-allowed"
+              >
+                {savingStates[device.deviceId] ? 'Saving...' : 'Save Data'}
+              </button>
+            </div>
             
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-md">
                 <h3 className="text-lg font-medium mb-2">NPK Values</h3>
                 <div className="grid grid-cols-3 gap-2">
-                  <div>N: {data.npk?.nitrogen || 0}</div>
-                  <div>P: {data.npk?.phosphorous || 0}</div>
-                  <div>K: {data.npk?.potassium || 0}</div>
+                  <div>N: {sensorData[device.deviceId]?.npk?.nitrogen || 0}</div>
+                  <div>P: {sensorData[device.deviceId]?.npk?.phosphorous || 0}</div>
+                  <div>K: {sensorData[device.deviceId]?.npk?.potassium || 0}</div>
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-md">
                 <h3 className="text-lg font-medium mb-2">Moisture</h3>
-                <div>{data.moisture || 0}%</div>
+                <div>{sensorData[device.deviceId]?.moisture || 0}%</div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-md">
                 <h3 className="text-lg font-medium mb-2">Temperature</h3>
-                <div>{data.temperature || 0}°C</div>
+                <div>{sensorData[device.deviceId]?.temperature || 0}°C</div>
               </div>
             </div>
           </div>
         ))}
       </div>
       
-       {/* Add Sensor Form */}
-       <div className="mb-6 bg-white p-4 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Add New Sensor Location</h2>
+      {/* Add Sensor Form */}
+      <div className="mt-8 mb-6 bg-white p-4 rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Add New Sensor</h2>
         <form onSubmit={handleAddSensor} className="flex gap-4">
           <input
             type="text"
@@ -212,16 +297,16 @@ export default function Dashboard() {
             className="border p-2 rounded"
             required
           />
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
             Add Sensor
           </button>
         </form>
       </div>
 
-       {/* Map Section */}
-       <div className="mb-6 h-[400px] rounded-lg overflow-hidden shadow-lg">
+      {/* Map */}
+      <div className="h-[400px] rounded-lg overflow-hidden shadow-lg">
         <DashboardMapWithNoSSR 
-          sensorLocations={sensorLocations} 
+          sensorLocations={devices} 
           sensorData={sensorData} 
         />
       </div>
