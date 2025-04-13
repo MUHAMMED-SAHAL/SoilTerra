@@ -5,12 +5,13 @@ import { MapContainer, TileLayer, Marker, Popup, ZoomControl, LayersControl, use
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-const DashboardMap = ({ sensorLocations, sensorData }) => {
+const DashboardMap = ({ sensorLocations, sensorData, weatherData }) => {
   // Debug logging
   useEffect(() => {
     console.log('Sensor Locations:', sensorLocations);
     console.log('Sensor Data:', sensorData);
-  }, [sensorLocations, sensorData]);
+    console.log('Weather Data:', weatherData);
+  }, [sensorLocations, sensorData, weatherData]);
 
   const customIcon = new L.Icon({
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -71,12 +72,23 @@ const DashboardMap = ({ sensorLocations, sensorData }) => {
               <h3 className="font-bold">{sensor.name}</h3>
               <div className="text-sm text-gray-500 mb-2">{sensor.deviceId}</div>
               {sensorData[sensor.deviceId] && (
-                <div className="text-sm">
-                  <p>Temperature: {sensorData[sensor.deviceId].temperature}°C</p>
-                  <p>Moisture: {sensorData[sensor.deviceId].moisture}%</p>
-                  <p>N: {sensorData[sensor.deviceId].npk?.nitrogen}</p>
-                  <p>P: {sensorData[sensor.deviceId].npk?.phosphorous}</p>
-                  <p>K: {sensorData[sensor.deviceId].npk?.potassium}</p>
+                <div className="text-sm space-y-2">
+                  <div>
+                    <p>Temperature: {sensorData[sensor.deviceId].temperature}°C</p>
+                    <p>Moisture: {sensorData[sensor.deviceId].moisture}%</p>
+                    <p>N: {sensorData[sensor.deviceId].npk?.nitrogen}</p>
+                    <p>P: {sensorData[sensor.deviceId].npk?.phosphorous}</p>
+                    <p>K: {sensorData[sensor.deviceId].npk?.potassium}</p>
+                  </div>
+                  {weatherData && weatherData[sensor.deviceId] && (
+                    <div className="border-t pt-2 mt-2">
+                      <p className="font-semibold">Weather Conditions:</p>
+                      <p>{weatherData[sensor.deviceId].weatherCondition}</p>
+                      <p>Humidity: {weatherData[sensor.deviceId].humidity}%</p>
+                      <p>Wind: {weatherData[sensor.deviceId].windSpeed} m/s {weatherData[sensor.deviceId].windDirection}</p>
+                      <p>Precipitation: {weatherData[sensor.deviceId].precipitation} mm</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

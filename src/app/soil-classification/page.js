@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import * as ort from 'onnxruntime-web';
 import { preprocessImage } from '@/utils/imageProcessing';
+import { getSoilRecommendations } from '@/utils/recommendations';
 
 const SOIL_LABELS = ['Alluvial Soil', 'Black Soil', 'Clay Soil', 'Red Soil'];
 
@@ -23,12 +24,19 @@ export default function SoilClassification() {
     try {
       setLoading(true);
       
-      // Preprocess image
+      // Convert file to base64
+      const base64Image = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+      
+      // Preprocess image for model
       const imageData = await preprocessImage(file, 'NHWC');
       
       // Configure ONNX session with optimized settings
       const sessionOptions = {
-        logSeverityLevel: 3, // Only log critical errors
+        logSeverityLevel: 3,
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
         executionMode: 'sequential',
@@ -63,18 +71,35 @@ export default function SoilClassification() {
       const maxIndex = predictionArray.indexOf(maxValue);
       const confidence = (maxValue * 100).toFixed(2);
 
-      // Set prediction with confidence threshold
+      const predictionResult = {
+        soilType: confidence > 20 ? SOIL_LABELS[maxIndex] : 'Uncertain',
+        confidence: confidence,
+        error: confidence <= 20 ? 'Low confidence prediction' : null
+      };
+
+      setPrediction(predictionResult);
+
+      // Only upload to Cloudinary and save to MongoDB if confidence is high enough
       if (confidence > 20) {
-        setPrediction({
-          soilType: SOIL_LABELS[maxIndex],
-          confidence: confidence
-        });
-      } else {
-        setPrediction({
-          soilType: 'Uncertain',
-          confidence: confidence,
-          error: 'Low confidence prediction'
-        });
+        try {
+          const response = await fetch('/api/soil-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image: base64Image,
+              prediction: predictionResult
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save image and prediction');
+          }
+        } catch (saveError) {
+          console.error('Failed to save results:', saveError);
+          // Don't throw here - we still want to show the prediction even if saving fails
+        }
       }
 
     } catch (error) {
@@ -118,12 +143,53 @@ export default function SoilClassification() {
         )}
 
         {prediction && (
-          <div className="bg-white p-6 rounded shadow">
-            <h2 className="text-xl font-semibold mb-2">Results</h2>
-            <p className="mb-2">Soil Type: {prediction.soilType}</p>
-            <p className="mb-2">Confidence: {prediction.confidence}%</p>
-            {prediction.error && (
-              <p className="text-red-500">{prediction.error}</p>
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded shadow">
+              <h2 className="text-xl font-semibold mb-2">Classification Results</h2>
+              <p className="mb-2">Soil Type: {prediction.soilType}</p>
+              <p className="mb-2">Confidence: {prediction.confidence}%</p>
+              {prediction.error && (
+                <p className="text-red-500">{prediction.error}</p>
+              )}
+            </div>
+
+            {prediction.soilType && !prediction.error && getSoilRecommendations(prediction.soilType) && (
+              <div className="bg-white p-6 rounded shadow">
+                <h2 className="text-xl font-semibold mb-4">Soil Recommendations</h2>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Description</h3>
+                    <p className="text-gray-700">{getSoilRecommendations(prediction.soilType).description}</p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Characteristics</h3>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      {getSoilRecommendations(prediction.soilType).characteristics.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Suitable Crops</h3>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      {getSoilRecommendations(prediction.soilType).suitableCrops.map((crop, index) => (
+                        <li key={index}>{crop}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Recommended Improvements</h3>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      {getSoilRecommendations(prediction.soilType).improvements.map((improvement, index) => (
+                        <li key={index}>{improvement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}

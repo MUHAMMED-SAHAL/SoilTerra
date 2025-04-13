@@ -19,6 +19,7 @@ const MapWithNoSSR = dynamic(
 export default function MapPage() {
   const [sensorLocations, setSensorLocations] = useState([]);
   const [sensorData, setSensorData] = useState({});
+  const [weatherData, setWeatherData] = useState({});
   const [newSensor, setNewSensor] = useState({ name: '', latitude: '', longitude: '' });
 
   useEffect(() => {
@@ -112,6 +113,7 @@ export default function MapPage() {
         <MapWithNoSSR 
           sensorLocations={sensorLocations} 
           sensorData={sensorData}
+          weatherData={weatherData}
         />
       </div>
     </div>

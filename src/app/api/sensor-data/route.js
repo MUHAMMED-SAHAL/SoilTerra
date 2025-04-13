@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/utils/mongodb';
 import Device from '@/models/Device';
 import SensorData from '@/models/SensorData';
+import WeatherData from '@/models/WeatherData';
+import { getWeatherData } from '@/utils/weather';
 
 export async function GET(request) {
   try {
@@ -22,7 +24,13 @@ export async function GET(request) {
     const sensorData = await SensorData.findOne({ deviceId: device._id })
       .sort({ timestamp: -1 });
 
-    return NextResponse.json({ device, sensorData });
+    // Get associated weather data if sensor data exists
+    let weatherData = null;
+    if (sensorData) {
+      weatherData = await WeatherData.findOne({ sensorDataId: sensorData._id });
+    }
+
+    return NextResponse.json({ device, sensorData, weatherData });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -49,7 +57,34 @@ export async function POST(request) {
     });
 
     await newSensorData.save();
-    return NextResponse.json(newSensorData);
+
+    // Fetch and save weather data
+    try {
+      const weatherData = await getWeatherData(
+        device.location.latitude,
+        device.location.longitude
+      );
+
+      const newWeatherData = new WeatherData({
+        sensorDataId: newSensorData._id,
+        ...weatherData,
+        timestamp: newSensorData.timestamp
+      });
+
+      await newWeatherData.save();
+
+      return NextResponse.json({
+        sensorData: newSensorData,
+        weatherData: newWeatherData
+      });
+    } catch (weatherError) {
+      console.error('Weather data error:', weatherError);
+      // Still return sensor data even if weather data fails
+      return NextResponse.json({ 
+        sensorData: newSensorData,
+        weatherError: 'Failed to fetch weather data'
+      });
+    }
   } catch (error) {
     console.error('Sensor data error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

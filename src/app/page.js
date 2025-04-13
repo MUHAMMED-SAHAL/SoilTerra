@@ -19,6 +19,7 @@ const DashboardMapWithNoSSR = dynamic(
 export default function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [sensorData, setSensorData] = useState({});
+  const [weatherData, setWeatherData] = useState({});
   const [newSensor, setNewSensor] = useState({ name: '', latitude: '', longitude: '' });
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
@@ -170,7 +171,6 @@ export default function Dashboard() {
         throw new Error('No data to save');
       }
 
-      // Save all sensor data in a single request
       const response = await fetch('/api/sensor-data', {
         method: 'POST',
         headers: {
@@ -184,6 +184,16 @@ export default function Dashboard() {
 
       if (!response.ok) {
         throw new Error('Failed to save sensor data');
+      }
+
+      const { sensorData: savedSensorData, weatherData: savedWeatherData } = await response.json();
+      
+      // Update weather data state
+      if (savedWeatherData) {
+        setWeatherData(prev => ({
+          ...prev,
+          [device.deviceId]: savedWeatherData
+        }));
       }
 
       setSavingStates(prev => ({ ...prev, [device.deviceId]: false }));
@@ -262,6 +272,18 @@ export default function Dashboard() {
                 <h3 className="text-lg font-medium mb-2">Temperature</h3>
                 <div>{sensorData[device.deviceId]?.temperature || 0}°C</div>
               </div>
+
+              {weatherData[device.deviceId] && (
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <h3 className="text-lg font-medium mb-2">Weather Conditions</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>Condition: {weatherData[device.deviceId].weatherCondition}</div>
+                    <div>Humidity: {weatherData[device.deviceId].humidity}%</div>
+                    <div>Wind: {weatherData[device.deviceId].windSpeed} m/s {weatherData[device.deviceId].windDirection}</div>
+                    <div>Precipitation: {weatherData[device.deviceId].precipitation} mm</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -308,6 +330,7 @@ export default function Dashboard() {
         <DashboardMapWithNoSSR 
           sensorLocations={devices} 
           sensorData={sensorData} 
+          weatherData={weatherData}
         />
       </div>
     </div>

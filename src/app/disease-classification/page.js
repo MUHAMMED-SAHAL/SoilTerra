@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import * as ort from 'onnxruntime-web';
 import { preprocessImage } from '@/utils/imageProcessing';
+import { getDiseaseRecommendations } from '@/utils/recommendations';
 
 const DISEASE_LABELS = ["curl", "healthy", "slug", "spot"];
 
@@ -23,12 +24,19 @@ export default function DiseaseClassification() {
     try {
       setLoading(true);
       
-      // Preprocess image
+      // Convert file to base64
+      const base64Image = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+      
+      // Preprocess image for model
       const imageData = await preprocessImage(file, 'NHWC');
       
       // Configure ONNX session with optimized settings
       const sessionOptions = {
-        logSeverityLevel: 3, // Only log critical errors
+        logSeverityLevel: 3,
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
         executionMode: 'sequential',
@@ -63,18 +71,35 @@ export default function DiseaseClassification() {
       const maxIndex = predictionArray.indexOf(maxValue);
       const confidence = (maxValue * 100).toFixed(2);
 
-      // Set prediction with confidence threshold
+      const predictionResult = {
+        diseaseStatus: confidence > 20 ? DISEASE_LABELS[maxIndex] : 'Uncertain',
+        confidence: confidence,
+        error: confidence <= 20 ? 'Low confidence prediction' : null
+      };
+
+      setPrediction(predictionResult);
+
+      // Only upload to Cloudinary and save to MongoDB if confidence is high enough
       if (confidence > 20) {
-        setPrediction({
-          diseaseStatus: DISEASE_LABELS[maxIndex],
-          confidence: confidence
-        });
-      } else {
-        setPrediction({
-          diseaseStatus: 'Uncertain',
-          confidence: confidence,
-          error: 'Low confidence prediction'
-        });
+        try {
+          const response = await fetch('/api/disease-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image: base64Image,
+              prediction: predictionResult
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save image and prediction');
+          }
+        } catch (saveError) {
+          console.error('Failed to save results:', saveError);
+          // Don't throw here - we still want to show the prediction even if saving fails
+        }
       }
 
     } catch (error) {
@@ -105,8 +130,9 @@ export default function DiseaseClassification() {
           <button
             onClick={() => fileInputRef.current.click()}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            disabled={loading}
           >
-            Upload Plant Image
+            {loading ? 'Processing...' : 'Upload Plant Image'}
           </button>
         </div>
 
@@ -119,11 +145,62 @@ export default function DiseaseClassification() {
         {loading && <div className="text-center">Analyzing plant...</div>}
 
         {prediction && (
-          <div className="bg-white p-6 rounded shadow">
-            <h2 className="text-xl font-semibold mb-2">Results</h2>
-            <p>Plant Status: {prediction.diseaseStatus}</p>
-            <p>Confidence: {prediction.confidence}%</p>
-            {prediction.error && <p className="text-red-500">Error: {prediction.error}</p>}
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded shadow">
+              <h2 className="text-xl font-semibold mb-2">Classification Results</h2>
+              <p className="mb-2">Plant Status: {prediction.diseaseStatus}</p>
+              <p className="mb-2">Confidence: {prediction.confidence}%</p>
+              {prediction.error && (
+                <p className="text-red-500">{prediction.error}</p>
+              )}
+            </div>
+
+            {prediction.diseaseStatus && !prediction.error && getDiseaseRecommendations(prediction.diseaseStatus) && (
+              <div className="bg-white p-6 rounded shadow">
+                <h2 className="text-xl font-semibold mb-4">Plant Care Recommendations</h2>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Description</h3>
+                    <p className="text-gray-700">{getDiseaseRecommendations(prediction.diseaseStatus).description}</p>
+                  </div>
+
+                  {prediction.diseaseStatus !== 'healthy' && (
+                    <>
+                      <div>
+                        <h3 className="font-semibold text-lg mb-2">Causes</h3>
+                        <ul className="list-disc list-inside text-gray-700 space-y-1">
+                          {getDiseaseRecommendations(prediction.diseaseStatus).causes.map((cause, index) => (
+                            <li key={index}>{cause}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div>
+                        <h3 className="font-semibold text-lg mb-2">Treatment</h3>
+                        <ul className="list-disc list-inside text-gray-700 space-y-1">
+                          {getDiseaseRecommendations(prediction.diseaseStatus).treatment.map((treatment, index) => (
+                            <li key={index}>{treatment}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">
+                      {prediction.diseaseStatus === 'healthy' ? 'Maintenance' : 'Prevention'}
+                    </h3>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      {getDiseaseRecommendations(prediction.diseaseStatus)[
+                        prediction.diseaseStatus === 'healthy' ? 'maintenance' : 'prevention'
+                      ].map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
