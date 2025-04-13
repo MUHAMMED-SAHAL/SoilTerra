@@ -1,6 +1,21 @@
 'use client'
+
 import { useEffect, useState, useRef } from 'react';
 import mqtt from 'mqtt';
+import dynamic from 'next/dynamic';
+
+// Dynamically import the map component
+const DashboardMapWithNoSSR = dynamic(
+  () => import('@/components/DashboardMap'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+      </div>
+    )
+  }
+);
 
 export default function Dashboard() {
   const [sensorData, setSensorData] = useState({
@@ -8,9 +23,12 @@ export default function Dashboard() {
     SOIL_SENSOR_2: { npk: { nitrogen: 0, phosphorous: 0, potassium: 0 }, moisture: 0, temperature: 0 },
     SOIL_SENSOR_3: { npk: { nitrogen: 0, phosphorous: 0, potassium: 0 }, moisture: 0, temperature: 0 }
   });
+  const [sensorLocations, setSensorLocations] = useState([]);
+  const [newSensor, setNewSensor] = useState({ name: '', latitude: '', longitude: '' });
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
   const clientRef = useRef(null);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     const client = mqtt.connect(
@@ -87,6 +105,21 @@ export default function Dashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = JSON.parse(localStorage.getItem("sensorLocations") || "[]");
+      setSensorLocations(stored);
+    }
+  }, []);
+
+  const handleAddSensor = (e) => {
+    e.preventDefault();
+    const updatedLocations = [...sensorLocations, newSensor];
+    setSensorLocations(updatedLocations);
+    localStorage.setItem("sensorLocations", JSON.stringify(updatedLocations));
+    setNewSensor({ name: '', latitude: '', longitude: '' });
+  };
+
   if (error) {
     return (
       <div className="p-6 bg-white rounded-lg shadow">
@@ -118,7 +151,8 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Soil Parameters Dashboard</h1>
-      
+
+      {/* Existing Sensor Data Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {Object.entries(sensorData).map(([sensorId, data]) => (
           <div key={sensorId} className="bg-white p-6 rounded-lg shadow-lg">
@@ -146,6 +180,51 @@ export default function Dashboard() {
             </div>
           </div>
         ))}
-        </div>
       </div>
-      )};
+      
+       {/* Add Sensor Form */}
+       <div className="mb-6 bg-white p-4 rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Add New Sensor Location</h2>
+        <form onSubmit={handleAddSensor} className="flex gap-4">
+          <input
+            type="text"
+            placeholder="Sensor Name"
+            value={newSensor.name}
+            onChange={(e) => setNewSensor({...newSensor, name: e.target.value})}
+            className="border p-2 rounded"
+            required
+          />
+          <input
+            type="number"
+            step="any"
+            placeholder="Latitude"
+            value={newSensor.latitude}
+            onChange={(e) => setNewSensor({...newSensor, latitude: parseFloat(e.target.value)})}
+            className="border p-2 rounded"
+            required
+          />
+          <input
+            type="number"
+            step="any"
+            placeholder="Longitude"
+            value={newSensor.longitude}
+            onChange={(e) => setNewSensor({...newSensor, longitude: parseFloat(e.target.value)})}
+            className="border p-2 rounded"
+            required
+          />
+          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+            Add Sensor
+          </button>
+        </form>
+      </div>
+
+       {/* Map Section */}
+       <div className="mb-6 h-[400px] rounded-lg overflow-hidden shadow-lg">
+        <DashboardMapWithNoSSR 
+          sensorLocations={sensorLocations} 
+          sensorData={sensorData} 
+        />
+      </div>
+    </div>
+  );
+}
