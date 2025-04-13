@@ -5,12 +5,13 @@ import SensorData from '@/models/SensorData';
 import WeatherData from '@/models/WeatherData';
 import { getWeatherData } from '@/utils/weather';
 
+// GET handler
 export async function GET(request) {
   try {
     await dbConnect();
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get('deviceId');
-    
+
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
     }
@@ -20,11 +21,8 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 });
     }
 
-    // Get latest sensor data for the device
-    const sensorData = await SensorData.findOne({ deviceId: device._id })
-      .sort({ timestamp: -1 });
+    const sensorData = await SensorData.findOne({ deviceId: device._id }).sort({ timestamp: -1 });
 
-    // Get associated weather data if sensor data exists
     let weatherData = null;
     if (sensorData) {
       weatherData = await WeatherData.findOne({ sensorDataId: sensorData._id });
@@ -36,38 +34,53 @@ export async function GET(request) {
   }
 }
 
+// POST handler
 export async function POST(request) {
   try {
     await dbConnect();
     const data = await request.json();
-    const { deviceId, sensorData } = data;
+    // console.log('Incoming Data:', data); // debug log
+
+    const { deviceId, type, payload } = data;
+
+    if (!deviceId || !type || !payload) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
 
     const device = await Device.findOne({ deviceId });
     if (!device) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 });
     }
 
-    // Create new sensor data document
-    const newSensorData = new SensorData({
+    // Build sensor document dynamically
+    const sensorDoc = {
       deviceId: device._id,
-      npk: sensorData.npk,
-      moisture: sensorData.moisture,
-      temperature: sensorData.temperature,
       timestamp: new Date()
-    });
+    };
 
+    if (type === 'npk') {
+      sensorDoc.npk = payload;
+    } else if (type === 'moisture') {
+      sensorDoc.moisture = payload.moisture;
+    } else if (type === 'temperature') {
+      sensorDoc.temperature = payload.temperature;
+    } else {
+      return NextResponse.json({ error: 'Invalid sensor data type' }, { status: 400 });
+    }
+
+    const newSensorData = new SensorData(sensorDoc);
     await newSensorData.save();
 
     // Fetch and save weather data
     try {
-      const weatherData = await getWeatherData(
+      const weather = await getWeatherData(
         device.location.latitude,
         device.location.longitude
       );
 
       const newWeatherData = new WeatherData({
         sensorDataId: newSensorData._id,
-        ...weatherData,
+        ...weather,
         timestamp: newSensorData.timestamp
       });
 
@@ -79,12 +92,12 @@ export async function POST(request) {
       });
     } catch (weatherError) {
       console.error('Weather data error:', weatherError);
-      // Still return sensor data even if weather data fails
-      return NextResponse.json({ 
+      return NextResponse.json({
         sensorData: newSensorData,
         weatherError: 'Failed to fetch weather data'
       });
     }
+
   } catch (error) {
     console.error('Sensor data error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
