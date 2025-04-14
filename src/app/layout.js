@@ -13,6 +13,10 @@ const inter = Inter({ subsets: ['latin'] });
 export default function RootLayout({ children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const handleLinkClick = () => {
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <html lang="en">
       <head>
@@ -53,6 +57,7 @@ export default function RootLayout({ children }) {
                   <Link 
                     href="/" 
                     className="flex items-center gap-3 p-3 hover:bg-[#2a2f2c] rounded-lg transition-colors duration-200 group"
+                    onClick={handleLinkClick}
                   >
                     <FaLeaf className="text-lg text-green-500 group-hover:text-green-400" />
                     <span className="group-hover:text-green-400">Dashboard</span>
@@ -62,6 +67,7 @@ export default function RootLayout({ children }) {
                   <Link 
                     href="/soil-classification" 
                     className="flex items-center gap-3 p-3 hover:bg-[#2a2f2c] rounded-lg transition-colors duration-200 group"
+                    onClick={handleLinkClick}
                   >
                     <FaMicroscope className="text-lg text-green-500 group-hover:text-green-400" />
                     <span className="group-hover:text-green-400">Soil Classification</span>
@@ -71,6 +77,7 @@ export default function RootLayout({ children }) {
                   <Link 
                     href="/disease-classification" 
                     className="flex items-center gap-3 p-3 hover:bg-[#2a2f2c] rounded-lg transition-colors duration-200 group"
+                    onClick={handleLinkClick}
                   >
                     <FaDisease className="text-lg text-green-500 group-hover:text-green-400" />
                     <span className="group-hover:text-green-400">Disease Classification</span>
@@ -80,6 +87,7 @@ export default function RootLayout({ children }) {
                   <Link 
                     href="/predictions" 
                     className="flex items-center gap-3 p-3 hover:bg-[#2a2f2c] rounded-lg transition-colors duration-200 group"
+                    onClick={handleLinkClick}
                   >
                     <FaChartLine className="text-lg text-green-500 group-hover:text-green-400" />
                     <span className="group-hover:text-green-400">Predictions</span>
