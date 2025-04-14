@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import * as ort from 'onnxruntime-web';
 import { preprocessImage } from '@/utils/imageProcessing';
 import { getDiseaseRecommendations } from '@/utils/recommendations';
+import { FaLeaf, FaUpload, FaBug, FaCheck, FaInfoCircle } from 'react-icons/fa';
 
 const DISEASE_LABELS = ["curl", "healthy", "slug", "spot"];
 
@@ -115,91 +116,94 @@ export default function DiseaseClassification() {
   };
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Plant Disease Classification</h1>
-      
-      <div className="max-w-xl mx-auto">
-        <div className="mb-6">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current.click()}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : 'Upload Plant Image'}
-          </button>
+    <div className="min-h-screen bg-[#1a1f1c] text-gray-200 p-4 sm:p-6 lg:p-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 sm:mb-8">
+        <FaLeaf className="text-2xl sm:text-3xl text-green-500" />
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+          Plant Disease Classification
+        </h1>
+      </div>
+
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+        {/* Upload Section */}
+        <div className="bg-black/20 backdrop-blur-lg p-4 sm:p-6 rounded-xl shadow-2xl border border-green-900/30">
+          <div className="mb-4 sm:mb-6 flex justify-center">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-green-500/20 flex items-center justify-center gap-2 text-sm sm:text-base"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 sm:h-5 sm:w-5 animate-spin rounded-full border-2 border-green-400 border-r-transparent" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <FaUpload className="text-base sm:text-lg" />
+                  <span>Upload Plant Image</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {image && (
+            <div className="mb-4 sm:mb-6">
+              <div className="relative aspect-video">
+                <img 
+                  src={image} 
+                  alt="Uploaded plant" 
+                  className="absolute inset-0 w-full h-full object-contain rounded-lg border-2 border-green-900/30" 
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {image && (
-          <div className="mb-6">
-            <img src={image} alt="Uploaded plant" className="max-w-full h-auto rounded" />
-          </div>
-        )}
-
-        {loading && <div className="text-center">Analyzing plant...</div>}
-
         {prediction && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded shadow">
-              <h2 className="text-xl font-semibold mb-2">Classification Results</h2>
-              <p className="mb-2">Plant Status: {prediction.diseaseStatus}</p>
-              <p className="mb-2">Confidence: {prediction.confidence}%</p>
-              {prediction.error && (
-                <p className="text-red-500">{prediction.error}</p>
-              )}
+          <div className="space-y-4 sm:space-y-6">
+            {/* Results Card */}
+            <div className="bg-black/20 backdrop-blur-lg p-4 sm:p-6 rounded-xl shadow-2xl border border-green-900/30">
+              <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-green-400 flex items-center gap-2">
+                {prediction.diseaseStatus === 'healthy' ? (
+                  <FaCheck className="text-green-500" />
+                ) : (
+                  <FaBug className="text-red-500" />
+                )}
+                Classification Results
+              </h2>
+              <div className="space-y-2">
+                <p className="text-sm sm:text-base text-gray-300">
+                  Plant Status: <span className={`${prediction.diseaseStatus === 'healthy' ? 'text-green-400' : 'text-red-400'}`}>
+                    {prediction.diseaseStatus}
+                  </span>
+                </p>
+                <p className="text-sm sm:text-base text-gray-300">
+                  Confidence: <span className="text-green-400">{prediction.confidence}%</span>
+                </p>
+                {prediction.error && (
+                  <p className="text-sm sm:text-base text-rose-400 bg-rose-900/20 p-3 rounded-lg border border-rose-900/30">
+                    <FaInfoCircle className="inline mr-2" />
+                    {prediction.error}
+                  </p>
+                )}
+              </div>
             </div>
 
+            {/* Recommendations Section */}
             {prediction.diseaseStatus && !prediction.error && getDiseaseRecommendations(prediction.diseaseStatus) && (
-              <div className="bg-white p-6 rounded shadow">
-                <h2 className="text-xl font-semibold mb-4">Plant Care Recommendations</h2>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold text-lg mb-2">Description</h3>
-                    <p className="text-gray-700">{getDiseaseRecommendations(prediction.diseaseStatus).description}</p>
-                  </div>
-
-                  {prediction.diseaseStatus !== 'healthy' && (
-                    <>
-                      <div>
-                        <h3 className="font-semibold text-lg mb-2">Causes</h3>
-                        <ul className="list-disc list-inside text-gray-700 space-y-1">
-                          {getDiseaseRecommendations(prediction.diseaseStatus).causes.map((cause, index) => (
-                            <li key={index}>{cause}</li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div>
-                        <h3 className="font-semibold text-lg mb-2">Treatment</h3>
-                        <ul className="list-disc list-inside text-gray-700 space-y-1">
-                          {getDiseaseRecommendations(prediction.diseaseStatus).treatment.map((treatment, index) => (
-                            <li key={index}>{treatment}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <h3 className="font-semibold text-lg mb-2">
-                      {prediction.diseaseStatus === 'healthy' ? 'Maintenance' : 'Prevention'}
-                    </h3>
-                    <ul className="list-disc list-inside text-gray-700 space-y-1">
-                      {getDiseaseRecommendations(prediction.diseaseStatus)[
-                        prediction.diseaseStatus === 'healthy' ? 'maintenance' : 'prevention'
-                      ].map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
+              <RecommendationsCard 
+                status={prediction.diseaseStatus} 
+                recommendations={getDiseaseRecommendations(prediction.diseaseStatus)} 
+              />
             )}
           </div>
         )}
@@ -207,3 +211,44 @@ export default function DiseaseClassification() {
     </div>
   );
 }
+
+// Helper component for recommendations
+const RecommendationsCard = ({ status, recommendations }) => (
+  <div className="bg-black/20 backdrop-blur-lg p-4 sm:p-6 rounded-xl shadow-2xl border border-green-900/30">
+    <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 text-green-400 flex items-center gap-2">
+      <FaLeaf className="text-green-500" />
+      Plant Care Recommendations
+    </h2>
+    <div className="grid gap-4 sm:gap-6">
+      <InfoSection title="Description" content={recommendations.description} />
+      
+      {status !== 'healthy' && (
+        <>
+          <InfoSection title="Causes" items={recommendations.causes} />
+          <InfoSection title="Treatment" items={recommendations.treatment} />
+        </>
+      )}
+      
+      <InfoSection 
+        title={status === 'healthy' ? 'Maintenance' : 'Prevention'} 
+        items={recommendations[status === 'healthy' ? 'maintenance' : 'prevention']} 
+      />
+    </div>
+  </div>
+);
+
+// Helper component for info sections
+const InfoSection = ({ title, content, items }) => (
+  <div className="bg-black/20 p-3 sm:p-4 rounded-lg border border-green-900/20">
+    <h3 className="font-semibold text-base sm:text-lg mb-2 text-emerald-400">{title}</h3>
+    {content ? (
+      <p className="text-sm sm:text-base text-gray-300">{content}</p>
+    ) : (
+      <ul className="list-disc list-inside text-sm sm:text-base text-gray-300 space-y-1 ml-2">
+        {items?.map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    )}
+  </div>
+);

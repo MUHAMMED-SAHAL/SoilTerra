@@ -1,8 +1,14 @@
 // Soil type recommendations
 const soilRecommendations = {
   'Alluvial Soil': {
-    description: 'Rich in nutrients and highly fertile soil formed by river deposits.',
-    suitableCrops: ['Rice', 'Wheat', 'Sugarcane', 'Cotton', 'Jute'],
+    description: 'Rich in nutrients and highly fertile soil formed by river deposits, common in Tamil Nadu delta regions.',
+    suitableCrops: [
+      'Paddy (நெல்)',
+      'Sugarcane (கரும்பு)',
+      'Banana (வாழைப்பழம்)',
+      'Coconut (தென்னை)',
+      'Betel (வெற்றிலை)'
+    ],
     improvements: [
       'Regular organic matter addition to maintain fertility',
       'Good drainage system to prevent waterlogging',
@@ -15,8 +21,14 @@ const soilRecommendations = {
     ]
   },
   'Black Soil': {
-    description: 'Deep black soil rich in clay content and moisture retention capacity.',
-    suitableCrops: ['Cotton', 'Soybean', 'Sugarcane', 'Groundnut', 'Wheat'],
+    description: 'Deep black soil rich in clay content and moisture retention capacity, found in parts of western Tamil Nadu.',
+    suitableCrops: [
+      'Cotton (பருத்தி)',
+      'Chilli (மிளகாய்)',
+      'Groundnut (நிலக்கடலை)',
+      'Sorghum (சோளம்)',
+      'Green Gram (பச்சைப்பயிறு)'
+    ],
     improvements: [
       'Deep ploughing to improve aeration',
       'Addition of organic matter to improve structure',
@@ -29,8 +41,14 @@ const soilRecommendations = {
     ]
   },
   'Clay Soil': {
-    description: 'Heavy soil with high water retention and slow drainage.',
-    suitableCrops: ['Rice', 'Wheat', 'Lettuce', 'Cabbage', 'Snap Beans'],
+    description: 'Heavy soil with high water retention and slow drainage, common in lowland areas of Tamil Nadu.',
+    suitableCrops: [
+      'Paddy (நெல்)',
+      'Turmeric (மஞ்சள்)',
+      'Water Spinach (வள்ளிக்கீரை)',
+      'Taro (சேப்பங்கிழங்கு)',
+      'Tapioca (மரவள்ளி)'
+    ],
     improvements: [
       'Add organic matter to improve structure',
       'Install drainage systems',
@@ -43,8 +61,14 @@ const soilRecommendations = {
     ]
   },
   'Red Soil': {
-    description: 'Well-drained soil rich in iron oxides with moderate fertility.',
-    suitableCrops: ['Groundnut', 'Potato', 'Millets', 'Tobacco', 'Oil seeds'],
+    description: 'Well-drained soil rich in iron oxides with moderate fertility, predominant in many parts of Tamil Nadu.',
+    suitableCrops: [
+      'Finger Millet (கேழ்வரகு)',
+      'Groundnut (நிலக்கடலை)',
+      'Horse Gram (கொள்ளு)',
+      'Pearl Millet (கம்பு)',
+      'Black Gram (உளுந்து)'
+    ],
     improvements: [
       'Regular addition of organic matter',
       'Mulching to prevent water loss',
