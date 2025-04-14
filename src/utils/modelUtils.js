@@ -1,10 +1,9 @@
-import * as ort from 'onnxruntime-node';
-import path from 'path';
+import * as ort from 'onnxruntime-web';
 
 const MODEL_PATHS = {
-  xgboost: path.join(process.cwd(), 'public', 'xgb_model.onnx'),
-  soil: path.join(process.cwd(), 'public', 'soil_model.onnx'),
-  disease: path.join(process.cwd(), 'public', 'plant_disease_model.onnx')
+  xgboost: '/xgb_model.onnx',
+  soil: '/soil_model.onnx',
+  disease: '/plant_disease_model.onnx'
 };
 
 // Session cache to avoid reloading models
@@ -35,13 +34,13 @@ export const NPK_RANGES = {
   potassium: { min: 15, optimal: 90, max: 200 }
 };
 
-// Default ONNX session options
+// Default ONNX session options for web
 const defaultSessionOptions = {
-  executionProviders: ['cpu'],
+  executionProviders: ['wasm'],
   graphOptimizationLevel: 'all',
   executionMode: 'sequential',
-  enableCpuMemArena: true,
-  enableMemPattern: true,
+  enableCpuMemArena: false,
+  enableMemPattern: false,
   enableProfiling: false
 };
 
@@ -406,4 +405,28 @@ export function calculateAggregatedSensorData(sensorDataArray) {
     moisture: Math.round(total.moisture / total.count),
     temperature: Math.round(total.temperature / total.count)
   };
+}
+
+// Add this export function
+export async function getModelInfo() {
+  try {
+    const modelInfo = {
+      xgboost: {
+        name: 'XGBoost + Random Forest',
+        type: 'Regression',
+        purpose: 'Crop recommendations & irrigation scheduling',
+        inputFeatures: ['npk', 'moisture', 'temperature', 'weather']
+      },
+      mobilenet: {
+        name: 'MobileNet v2',
+        type: 'Image Classification',
+        purpose: ['Soil type identification', 'Plant disease detection'],
+        inputSize: [224, 224, 3]
+      }
+    };
+    return modelInfo;
+  } catch (error) {
+    console.error('Error getting model info:', error);
+    throw error;
+  }
 }
