@@ -98,7 +98,7 @@ export default function RootLayout({ children }) {
             
             <div className="mt-auto p-6 border-t border-green-900">
               <div className="text-sm text-gray-400">
-                <p className="mb-1">© 2025 SoilTerra</p>
+                <p className="mb-1">© 2026 SoilTerra</p>
                 <p className="text-xs">Smart Agriculture Platform</p>
               </div>
             </div>
